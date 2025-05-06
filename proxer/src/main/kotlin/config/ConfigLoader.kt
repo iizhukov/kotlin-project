@@ -1,21 +1,16 @@
-package com.iizhukov.config
+package config
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.io.File
 
-class ConfigLoader {
-    companion object {
-        @Volatile
-        private var instance: ConfigLoader? = null
+object ConfigLoader {
+    private val json = Json { ignoreUnknownKeys = true }
 
-        fun getInstance() =
-            instance ?: synchronized(this) {
-                instance ?: ConfigLoader().also { instance = it }
-            }
-    }
-
-    fun loadConfig(path: String): Config {
-        val configText = File(path).readText()
-        return Json.decodeFromString(configText)
-    }
+    suspend fun loadConfig(path: String): Config =
+        withContext(Dispatchers.IO) {
+            json.decodeFromString<Config>(File(path).readText())
+        }
 }

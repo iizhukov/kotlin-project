@@ -1,13 +1,58 @@
 {
-  "port": 8080,
-  "routes": [
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8080
+  },
+  "proxy": [
     {
       "prefix": "/api/",
-      "target": "http://127.0.0.1:8000/api/"
+      "target": "/api/v1/",
+      "protocol": "http",
+      "ips": ["127.0.0.1:8000", "127.0.0.1:8001"],
+      "cache": true
     },
     {
       "prefix": "/admin/",
-      "target": "http://127.0.0.1:8000/admin/"
+      "target": "/admin/",
+      "protocol": "http",
+      "ips": ["127.0.0.1:8080"],
+      "cache": false
     }
-  ]
+  ],
+  "queues": [
+    {
+      "prefix": "/send/",
+      "target": "/send_message/",
+      "protocol": "http",
+      "ip": "127.0.0.1:8000"
+    },
+    {
+      "prefix": "/comment/",
+      "target": "/comment/create/",
+      "protocol": "http",
+      "ip": "127.0.0.1:8001"
+    }
+  ],
+  "stats": {
+    "enabled": false,
+    "port": 8081,
+    "frequency": 1,
+    "mongodb": {
+      "username": "admin",
+      "password": "admin",
+      "host": "127.0.0.1",
+      "port": 27017,
+      "dbname": "dbname"
+    }
+  },
+  "cache": {
+    "enabled": false,
+    "duration": 300,
+    "redis": {
+      "password": "admin",
+      "host": "127.0.0.1",
+      "port": 6379,
+      "index": 0
+    }
+  }
 }
