@@ -15,7 +15,10 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.coroutines.runBlocking
+import io.lettuce.core.ExperimentalLettuceCoroutinesApi
+import io.lettuce.core.api.coroutines.RedisCoroutinesCommands
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.koin.ktor.ext.inject
 
 fun Application.configureProxy() {
@@ -28,18 +31,24 @@ fun Application.configureProxy() {
 
             route(proxy.prefix) {
                 handle {
-                    call.callHandler(proxy, loadBalancer)
+                    withContext(Dispatchers.IO) {
+                        call.callHandler(proxy, loadBalancer)
+                    }
                 }
 
                 route("{path...}") {
                     handle {
-                        call.callHandler(proxy, loadBalancer)
+                        withContext(Dispatchers.IO) {
+                            call.callHandler(proxy, loadBalancer)
+                        }
                     }
                 }
 
                 route("{path...}/") {
                     handle {
-                        call.callHandler(proxy, loadBalancer)
+                        withContext(Dispatchers.IO) {
+                            call.callHandler(proxy, loadBalancer)
+                        }
                     }
                 }
             }
@@ -47,15 +56,30 @@ fun Application.configureProxy() {
     }
 }
 
+@OptIn(ExperimentalLettuceCoroutinesApi::class)
 suspend fun ApplicationCall.callHandler(
     proxy: ProxyConfig,
     loadBalancer: RoundRobinLoadBalancer,
 ) {
+    val config by inject<Config>()
     val client by inject<HttpClient>()
+    val redis by inject<RedisCoroutinesCommands<String, String>>()
+
+    val path = request.uri.removePrefix(proxy.prefix)
+
+    val cacheKey = "cache:${request.uri}"
+    val cacheEnabled = proxy.cache && config.cache.enabled
+
+    if (cacheEnabled && request.httpMethod == HttpMethod.Get) {
+        val cached = redis.get(cacheKey)
+        if (!cached.isNullOrEmpty()) {
+            respondText(cached, ContentType.Application.Json)
+            return
+        }
+    }
 
     val serverIp = loadBalancer.nextServer()
-    val path = request.uri.replace(proxy.prefix, proxy.target)
-    val url = "${proxy.protocol}://$serverIp$path"
+    val url = "${proxy.protocol}://$serverIp${proxy.target}$path"
 
     val proxyResponse =
         client.request(url) {
@@ -65,13 +89,22 @@ suspend fun ApplicationCall.callHandler(
                 headers.appendAll(key, values)
             }
 
-            if (request.httpMethod == HttpMethod.Post ||
-                request.httpMethod == HttpMethod.Put ||
-                request.httpMethod == HttpMethod.Patch
-            ) {
+            if (request.httpMethod in listOf(HttpMethod.Post, HttpMethod.Put, HttpMethod.Patch)) {
                 setBody(request.receiveChannel())
             }
         }
+
+    val responseBytes = proxyResponse.readBytes()
+
+    if (cacheEnabled && request.httpMethod == HttpMethod.Get) {
+        val duration = config.cache.duration.toLong()
+
+        if (duration != -1L) {
+            redis.setex(cacheKey, duration, responseBytes.decodeToString())
+        } else {
+            redis.set(cacheKey, responseBytes.decodeToString())
+        }
+    }
 
     respond(
         object : OutgoingContent.ByteArrayContent() {
@@ -79,10 +112,7 @@ suspend fun ApplicationCall.callHandler(
             override val status: HttpStatusCode = proxyResponse.status
             override val headers: Headers = proxyResponse.headers
 
-            override fun bytes(): ByteArray =
-                runBlocking {
-                    proxyResponse.readBytes()
-                }
+            override fun bytes(): ByteArray = responseBytes
         },
     )
 }

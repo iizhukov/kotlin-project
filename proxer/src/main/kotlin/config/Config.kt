@@ -19,7 +19,7 @@ data class ProxyConfig(
 
 @Serializable
 data class QueueConfig(
-    val prefix: String,
+    val endpoint: String,
     val target: String,
     val ip: String,
     val protocol: String,

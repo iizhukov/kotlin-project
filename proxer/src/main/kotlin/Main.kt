@@ -1,4 +1,7 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 import config.ConfigLoader
+import core.cacheModule
 import core.coreModule
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -13,7 +16,13 @@ fun main(): Unit =
 
         embeddedServer(Netty, port = config.server.port, host = config.server.host) {
             install(Koin) {
-                modules(coreModule(config))
+                modules(
+                    coreModule(config),
+                )
+//                modules(queueModule)
+                modules(
+                    if (config.cache.enabled) listOf(cacheModule) else emptyList(),
+                )
             }
 
             configureProxy()

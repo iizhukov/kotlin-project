@@ -12,6 +12,8 @@ import org.koin.dsl.module
 fun coreModule(config: Config): Module =
     module {
         single { config }
+        single { config.cache }
+        single { config.queues }
         single { HttpClient(CIO) }
         single { LoadBalancerFactory() }
     }
