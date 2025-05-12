@@ -29,7 +29,7 @@ services:
       - redis_data:/data
     environment:
       - REDIS_PASSWORD=admin
-    command: redis-server --requirepass $${REDIS_PASSWORD}
+    command: redis-server --requirepass admin
     networks:
       - backbone
 

@@ -15,19 +15,19 @@
       "prefix": "/admin/",
       "target": "/admin/",
       "protocol": "http",
-      "ips": ["127.0.0.1:8080"],
+      "ips": ["127.0.0.1:8001"],
       "cache": false
     }
   ],
   "queues": [
     {
-      "prefix": "/send/",
+      "endpoint": "/send/",
       "target": "/send_message/",
       "protocol": "http",
       "ip": "127.0.0.1:8000"
     },
     {
-      "prefix": "/comment/",
+      "endpoint": "/comment/",
       "target": "/comment/create/",
       "protocol": "http",
       "ip": "127.0.0.1:8001"
@@ -46,7 +46,7 @@
     }
   },
   "cache": {
-    "enabled": false,
+    "enabled": true,
     "duration": 300,
     "redis": {
       "password": "admin",

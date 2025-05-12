@@ -1,12 +1,31 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response, Header
 from pydantic import BaseModel
 from typing import List
+import aiohttp
+import time
 import asyncio
 import logging
 import os
 
 
+SERVICE_PORT = os.getenv("PORT", "8000")
 app = FastAPI()
+
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    print(f"Request processing time: {process_time:.4f} seconds")
+    return response
+
+
+@app.middleware("http")
+async def add_port_header(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Service-Port"] = str(SERVICE_PORT)
+    return response
 
 
 users = [
@@ -42,14 +61,22 @@ async def get_users():
 
 
 @app.post("/api/v1/users/", response_model=UserModel)
-async def create_user(user: CreateUserModel):
+async def create_user(user: CreateUserModel, x_forwarded_by: str = Header(None)):
     new_user = {
-       "id": len(users) + 1,
-       "name": user.name,
-       "email": user.email
-   }
-
+        "id": len(users) + 1,
+        "name": user.name,
+        "email": user.email
+    }
     users.append(new_user)
+
+    print("hi")
+
+    another_port = "8001" if SERVICE_PORT == "8000" else "8000"
+
+    if not x_forwarded_by or x_forwarded_by != str(another_port):
+        print("request")
+        async with aiohttp.ClientSession() as session:
+            await session.post(f"http://172.17.0.1:{another_port}/api/v1/users/", json=user.dict(), headers={"X-Forwarded-By": SERVICE_PORT})
 
     return new_user
 
@@ -60,7 +87,7 @@ async def admin_info():
         "service": "User Management API",
         "version": "1.0",
         "status": "running",
-        "port": os.getenv("PORT", -1)
+        "port": SERVICE_PORT
     }
 
 
