@@ -19,14 +19,13 @@ fun main(): Unit =
                 modules(
                     coreModule(config),
                 )
-//                modules(queueModule)
                 modules(
                     if (config.cache.enabled) listOf(cacheModule) else emptyList(),
                 )
             }
 
             configureProxy()
-//            configureQueues()
+            configureQueues()
 //            configureMonitoring()
         }.start(wait = true)
     }
