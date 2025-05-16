@@ -13,7 +13,6 @@ import org.koin.dsl.module
 fun coreModule(config: Config): Module =
     module {
         single { config }
-        single { config.cache }
         single { QueueManager(config.queues, HttpClient(CIO)) }
         single { config.queues }
         single { HttpClient(CIO) }

@@ -6,6 +6,7 @@ import config.Config
 import config.ProxyConfig
 import features.proxy.LoadBalancerFactory
 import features.proxy.RoundRobinLoadBalancer
+import features.stats.StatsCollector
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -64,55 +65,68 @@ suspend fun ApplicationCall.callHandler(
     val config by inject<Config>()
     val client by inject<HttpClient>()
     val redis by inject<RedisCoroutinesCommands<String, String>>()
+    val statsCollector by inject<StatsCollector>()
 
     val path = request.uri.removePrefix(proxy.prefix)
+    val endpoint = request.uri.substringBefore('?')
 
-    val cacheKey = "cache:${request.uri}"
-    val cacheEnabled = proxy.cache && config.cache.enabled
+    try {
+        statsCollector.trackRequest(endpoint)
 
-    if (cacheEnabled && request.httpMethod == HttpMethod.Get) {
-        val cached = redis.get(cacheKey)
-        if (!cached.isNullOrEmpty()) {
-            respondText(cached, ContentType.Application.Json)
-            return
-        }
-    }
+        val cacheKey = "cache:${request.uri}"
+        val cacheEnabled = proxy.cache && config.cache.enabled
 
-    val serverIp = loadBalancer.nextServer()
-    val url = "${proxy.protocol}://$serverIp${proxy.target}$path"
+        if (cacheEnabled && request.httpMethod == HttpMethod.Get) {
+            val cached = redis.get(cacheKey)
+            if (!cached.isNullOrEmpty()) {
+                respondText(cached, ContentType.Application.Json)
 
-    val proxyResponse =
-        client.request(url) {
-            method = request.httpMethod
-
-            request.headers.forEach { key, values ->
-                headers.appendAll(key, values)
-            }
-
-            if (request.httpMethod in listOf(HttpMethod.Post, HttpMethod.Put, HttpMethod.Patch)) {
-                setBody(request.receiveChannel())
+                statsCollector.trackCached(endpoint)
+                return
             }
         }
 
-    val responseBytes = proxyResponse.readBytes()
+        val serverIp = loadBalancer.nextServer()
+        val url = "${proxy.protocol}://$serverIp${proxy.target}$path"
 
-    if (cacheEnabled && request.httpMethod == HttpMethod.Get) {
-        val duration = config.cache.duration.toLong()
+        val proxyResponse =
+            client.request(url) {
+                method = request.httpMethod
 
-        if (duration != -1L) {
-            redis.setex(cacheKey, duration, responseBytes.decodeToString())
-        } else {
-            redis.set(cacheKey, responseBytes.decodeToString())
+                request.headers.forEach { key, values ->
+                    headers.appendAll(key, values)
+                }
+
+                if (request.httpMethod in listOf(HttpMethod.Post, HttpMethod.Put, HttpMethod.Patch)) {
+                    setBody(request.receiveChannel())
+                }
+            }
+
+        val responseBytes = proxyResponse.readBytes()
+
+        if (cacheEnabled && request.httpMethod == HttpMethod.Get) {
+            val duration = config.cache.duration.toLong()
+
+            if (duration != -1L) {
+                redis.setex(cacheKey, duration, responseBytes.decodeToString())
+            } else {
+                redis.set(cacheKey, responseBytes.decodeToString())
+            }
         }
+
+        respond(
+            object : OutgoingContent.ByteArrayContent() {
+                override val contentType: ContentType = proxyResponse.contentType() ?: ContentType.Application.Json
+                override val status: HttpStatusCode = proxyResponse.status
+                override val headers: Headers = proxyResponse.headers
+
+                override fun bytes(): ByteArray = responseBytes
+            },
+        )
+
+        statsCollector.trackSuccess(endpoint)
+    } catch (e: Exception) {
+        statsCollector.trackFailure(endpoint)
+        throw e
     }
-
-    respond(
-        object : OutgoingContent.ByteArrayContent() {
-            override val contentType: ContentType = proxyResponse.contentType() ?: ContentType.Application.Json
-            override val status: HttpStatusCode = proxyResponse.status
-            override val headers: Headers = proxyResponse.headers
-
-            override fun bytes(): ByteArray = responseBytes
-        },
-    )
 }

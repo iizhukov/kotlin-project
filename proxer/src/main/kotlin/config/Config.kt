@@ -37,7 +37,7 @@ data class MongoConfig(
 @Serializable
 data class StatsConfig(
     val enabled: Boolean,
-    val port: Int,
+    val server: ServerConfig,
     val frequency: Int,
     val mongodb: MongoConfig,
 )

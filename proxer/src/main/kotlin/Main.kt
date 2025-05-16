@@ -3,6 +3,7 @@
 import config.ConfigLoader
 import core.cacheModule
 import core.coreModule
+import core.statsModule
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
@@ -14,18 +15,35 @@ fun main(): Unit =
     runBlocking {
         val config = ConfigLoader.loadConfig("config.json")
 
-        embeddedServer(Netty, port = config.server.port, host = config.server.host) {
-            install(Koin) {
-                modules(
-                    coreModule(config),
-                )
-                modules(
-                    if (config.cache.enabled) listOf(cacheModule) else emptyList(),
-                )
-            }
+        val mainServer =
+            Thread {
+                embeddedServer(Netty, host = config.server.host, port = config.server.port) {
+                    install(Koin) {
+                        modules(
+                            coreModule(config),
+                        )
 
-            configureProxy()
-            configureQueues()
-//            configureMonitoring()
-        }.start(wait = true)
+                        if (config.cache.enabled) {
+                            modules(cacheModule)
+                        }
+
+                        if (config.stats.enabled) {
+                            modules(statsModule)
+                        }
+                    }
+
+                    configureProxy()
+                    configureQueues()
+                }.start(wait = true)
+            }.apply { start() }
+
+        if (config.stats.enabled) {
+            Thread {
+                embeddedServer(Netty, host = config.stats.server.host, port = config.stats.server.port) {
+                    configureMonitor()
+                }.start(wait = true)
+            }.start()
+        }
+
+        mainServer.join()
     }

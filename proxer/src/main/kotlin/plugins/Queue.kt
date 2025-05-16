@@ -8,6 +8,8 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.koin.ktor.ext.inject
 
 fun Application.configureQueues() {
@@ -17,11 +19,13 @@ fun Application.configureQueues() {
     routing {
         config.queues.forEach { queue ->
             post(queue.endpoint) {
-                val body = call.receiveText()
+                withContext(Dispatchers.IO) {
+                    val body = call.receiveText()
 
-                manager.send(queue.endpoint, body)
+                    manager.send(queue.endpoint, body)
 
-                call.respondText("Message queued")
+                    call.respondText("Message queued")
+                }
             }
         }
     }
