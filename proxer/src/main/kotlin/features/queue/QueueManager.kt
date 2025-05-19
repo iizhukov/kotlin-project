@@ -5,6 +5,7 @@ package features.queue
 import config.QueueConfig
 import io.ktor.client.*
 import io.ktor.client.request.*
+import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
@@ -27,9 +28,11 @@ class QueueWorker(
                 try {
                     client.post(targetUrl) {
                         setBody(message.body)
+                        contentType(ContentType.Application.Json)
                     }
                 } catch (e: Exception) {
                     println("Failed to deliver message to $targetUrl: ${e.message}")
+                    channel.send(message)
                 }
             }
         }
