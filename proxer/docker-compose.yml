@@ -1,4 +1,18 @@
 services:
+  proxy:
+    build: .
+    container_name: proxy
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    networks:
+      - backbone
+    depends_on:
+      - service_8000
+      - service_8001
+      - redis
+      - mongodb
+
   service_8000:
     build: ./microservices
     container_name: service_8000

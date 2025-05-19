@@ -28,6 +28,13 @@ async def add_port_header(request: Request, call_next):
     return response
 
 
+# @app.middleware("http")
+# async def debug_post(request: Request, call_next):
+#     print(request.headers)
+#     response = await call_next(request)
+#     return response
+
+
 users = [
     {"id": 1, "name": "Alice", "email": "alice@example.com"},
     {"id": 2, "name": "Bob", "email": "bob@example.com"},
