@@ -1,7 +1,8 @@
 plugins {
     kotlin("jvm") version "2.1.0"
-
     kotlin("plugin.serialization") version "1.9.21"
+
+    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 group = "com.iizhukov"
@@ -28,6 +29,13 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+
 kotlin {
     jvmToolchain(21)
+}
+
+tasks.withType<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar> {
+    manifest {
+        attributes["Main-Class"] = "MainKt"
+    }
 }
