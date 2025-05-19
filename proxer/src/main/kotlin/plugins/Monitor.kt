@@ -7,7 +7,6 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.contentnegotiation.*
-import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.json.Json
@@ -44,16 +43,8 @@ fun Application.configureMonitor() {
             val pageSize = call.request.queryParameters["pageSize"]?.toIntOrNull() ?: 10
             val endpoint = call.request.queryParameters["endpoint"]
 
-//            try {
             val history = statsCollector.getHistory(page, pageSize, endpoint)
             call.respond(history)
-//            } catch (e: Exception) {
-//                call.respondText(
-//                    "Failed to get history: ${e.message}",
-//                    status = HttpStatusCode.InternalServerError,
-//                )
-//                application.log.error("History error", e)
-//            }
         }
     }
 }
