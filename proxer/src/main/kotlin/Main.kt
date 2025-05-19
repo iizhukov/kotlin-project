@@ -1,13 +1,20 @@
 @file:Suppress("ktlint:standard:no-wildcard-imports")
 
+import config.Config
 import config.ConfigLoader
 import core.cacheModule
 import core.coreModule
 import core.statsModule
+import features.proxy.LoadBalancerFactory
+import features.queue.QueueManager
+import features.stats.StatsCollector
+import io.ktor.client.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.lettuce.core.RedisClient
 import kotlinx.coroutines.runBlocking
+import org.koin.ktor.ext.inject
 import org.koin.ktor.plugin.Koin
 import plugins.*
 
@@ -32,6 +39,8 @@ fun main(): Unit =
                         }
                     }
 
+                    initKoin()
+
                     configureProxy()
                     configureQueues()
                 }.start(wait = true)
@@ -47,3 +56,18 @@ fun main(): Unit =
 
         mainServer.join()
     }
+
+fun Application.initKoin() {
+    val config by inject<Config>()
+    val queueManager by inject<QueueManager>()
+    val httpClient by inject<HttpClient>()
+    val loadBalancerFactory by inject<LoadBalancerFactory>()
+
+    if (config.cache.enabled) {
+        val redisClient by inject<RedisClient>()
+    }
+
+    if (config.stats.enabled) {
+        val statsCollector by inject<StatsCollector>()
+    }
+}
